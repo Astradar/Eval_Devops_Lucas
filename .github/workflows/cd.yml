@@ -47,7 +47,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Login GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Sauvegarde de l'image actuelle (pour le rollback)
         run: |
           $prev = docker ps -a --filter name=astradar-app --format "{{.Image}}"
