@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          python-version: "3.12"
+      - run: flake8 app.py test_app.py
+      - run: yamllint .
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    services:
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pytest --junitxml=report-${{ matrix.python-version }}.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report-${{ matrix.python-version }}
+          path: report-${{ matrix.python-version }}.xml
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t astradar-app .
+
+  ci-ok:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [lint, test, build]
+    if: always()
+    steps:
+      - uses: actions/download-artifact@v4
+      - run: exit 1
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+      - run: echo "CI ok"

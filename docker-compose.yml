@@ -1,0 +1,26 @@
+services:
+  app:
+    build: .
+    image: ${IMAGE:-astradar-app:local}
+    container_name: astradar-app
+    ports:
+      - "5000:5000"
+    environment:
+      REDIS_HOST: redis
+      APP_VERSION: ${APP_VERSION:-dev}
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  redis:
+    image: redis:7.4-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3

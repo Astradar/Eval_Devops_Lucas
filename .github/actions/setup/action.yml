@@ -1,0 +1,14 @@
+name: Setup
+description: Installe Python et les dependances (avec cache pip)
+inputs:
+  python-version:
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: pip
+    - run: pip install -r requirements.txt pytest flake8 yamllint
+      shell: bash

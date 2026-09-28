@@ -1,0 +1,69 @@
+name: CD
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environnement cible
+        type: choice
+        options: [production]
+        default: production
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/astradar/eval_devops_lucas
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Build et push (latest, sha court, semver)
+        run: |
+          SHORT_SHA=${GITHUB_SHA::7}
+          docker build -t $IMAGE:latest -t $IMAGE:$SHORT_SHA -t $IMAGE:1.0.${{ github.run_number }} .
+          docker push --all-tags $IMAGE
+
+  deploy:
+    runs-on: self-hosted
+    timeout-minutes: 10
+    needs: push
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    environment: ${{ inputs.environment || 'production' }}
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Sauvegarde de l'image actuelle (pour le rollback)
+        run: |
+          $prev = docker ps -a --filter name=astradar-app --format "{{.Image}}"
+          Add-Content -Path $env:GITHUB_ENV -Value "PREVIOUS_IMAGE=$prev"
+      - name: Deploiement
+        run: |
+          $sha = "${{ github.sha }}".Substring(0, 7)
+          $env:IMAGE = "${{ env.IMAGE }}:$sha"
+          $env:APP_VERSION = $sha
+          docker pull $env:IMAGE
+          docker compose up -d --no-build
+      - name: Verification du healthcheck (3 essais)
+        run: curl.exe -f --retry 3 --retry-delay 5 --retry-all-errors http://localhost:5000/health
+      - name: Rollback
+        if: failure() && env.PREVIOUS_IMAGE != ''
+        run: |
+          $env:IMAGE = "${{ env.PREVIOUS_IMAGE }}"
+          docker pull $env:IMAGE
+          docker compose up -d --no-build
