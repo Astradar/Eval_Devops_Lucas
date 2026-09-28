@@ -1,5 +1,5 @@
 name: Setup
-description: Installe Python et les dependances (avec cache pip)
+description: Installe python + les dependances avec le cache pip
 inputs:
   python-version:
     required: true

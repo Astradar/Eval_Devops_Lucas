@@ -1,8 +1,8 @@
 groups:
   - name: astradar
     rules:
-      # Plus de 5% de reponses 5xx sur les 5 dernieres minutes,
-      # pendant 5 minutes : on evite d'alerter sur un pic isole.
+      # plus de 5% de 5xx sur 5 min, pendant 5 min
+      # le for evite d'alerter pour un petit pic
       - alert: TauxErreurs5xxEleve
         expr: |
           sum(rate(http_requests_total{code=~"5.."}[5m]))
@@ -11,10 +11,10 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "Plus de 5% d'erreurs 5xx sur l'application"
+          summary: "Plus de 5% d'erreurs 5xx sur l'appli"
 
-      # p95 au-dessus de 500 ms pendant 10 minutes :
-      # l'appli repond normalement en quelques ms, 500 ms = degradation.
+      # p95 > 500ms pendant 10 min
+      # normalement l'appli repond en quelques ms
       - alert: LatenceP95Degradee
         expr: |
           histogram_quantile(0.95,
@@ -24,4 +24,4 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "p95 de latence superieur a 500 ms"
+          summary: "Le p95 de latence depasse 500ms"
